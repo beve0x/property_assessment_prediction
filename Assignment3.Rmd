@@ -1,0 +1,146 @@
+---
+title: "Assignment 3"
+output: html_document
+date: "2023-11-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(caret)
+# loading the data
+property <- read.csv("historic_property_data.csv")
+nrow(property)
+head(property)
+```
+
+
+```{r pressure, echo=FALSE}
+#Remove the char_cnst_qlty, char_repair_cnd, char_site variables
+#remove these variables that were labelled as false for predictors 'char_cnst_qlty', 'char_ot_impr', 'char_renovation', 'char_repair_cnd', 'char_site', 'geo_asian_perc', 'geo_black_perc', 'geo_fips', 'geo_his_perc', 'geo_municipality', 'geo_other_perc', 'geo_property_city', 'geo_property_zip', 'geo_tract_pop', 'geo_white_perc','ind_large_home', 'meta_cdu', 'meta_certified_est_bldg', 'meta_certified_est_land', 'meta_class', 'meta_deed_type','meta_nbhd'
+
+property <- subset(property, select = -c(char_cnst_qlty, char_repair_cnd, char_site))
+head(property)
+```
+```{r}
+summary(property)
+```
+```{r}
+colSums(is.na(property))
+```
+```{r}
+#correlation matrix
+cor(property[sapply(property, is.numeric)])
+```
+meta_certified_est_bldg and meta_certified_est_land" have relatively high correlations with "sale_price" (0.876 and 0.733, respectively), indicating their potential importance in predicting property values.
+
+The following were observed to be more than 0.5, indicating high correlation but will not be removed
+correlation - 0.671199149
+econ_tax_rate
+meta_town_code 
+-0.5737509867
+econ_tax_rate
+meta_nbhd
+-0.5736368133
+char_fbath
+char_rooms
+0.75694517 
+ char_fbath
+char_beds
+0.72547929
+As such,
+Variables with low correlation with "sale_price" and other predictors, such as "char_apts", "char_ext_wall", "char_roof_cnst", "char_bsmt", "char_bsmt_fin", "char_heat", "char_oheat", "char_air", "char_frpl", and "char_attic_type" will be removed.
+One of the highly correlated variables in pairs such as "meta_town_code" and "meta_nbhd" will be removed to mitigate multicollinearity.
+```{r}
+# Remove specified columns
+property <- subset(property, select = -c(meta_town_code, char_tp_plan, char_tp_dsgn, char_gar1_size, char_gar1_cnst, char_gar1_att, char_gar1_area, char_use, char_type_resd, char_attic_fnsh, char_renovation, char_porch, geo_tract_pop, geo_white_perc, geo_black_perc, geo_asian_perc, geo_his_perc, geo_other_perc, geo_fips, geo_ohare_noise, geo_floodplain, geo_fs_flood_factor, geo_fs_flood_risk_direction, geo_withinmr100, geo_withinmr101300, econ_midincome, char_apts, char_ext_wall, char_roof_cnst, char_bsmt, char_bsmt_fin, char_heat, char_oheat, char_air, char_frpl, char_attic_type))
+```
+
+
+```{r}
+colSums(is.na(property))
+```
+
+
+
+meta_cdu has 47184 missing values which makes it hard to analyse given that we only have 50,000 rows. It would be wise to remove meta_cdu and for geo_municipality and geo_school_elem_district, geo_property_city,geo_school_elem_district, geo_school_hs_district, ind_garage, we will remove the rows with the missing values. 
+```{r}
+property <- subset(property, select = -c(meta_cdu))
+```
+
+```{r}
+property <- property[complete.cases(property), ]
+nrow(property)
+head(property)
+```
+```{r}
+#check for multicolinearity
+# Load the required library
+library(car)
+
+# Define the multiple linear regression model
+model <- lm(sale_price ~ ., data = property)
+
+# Calculate the VIF for each predictor variable in the model
+vif_values <- car::vif(model)
+print(vif_values)
+```
+
+
+
+```{r}
+library(randomForest)
+```
+
+```{r}
+set.seed(123)  # for reproducibility
+train_indices <- sample(1:nrow(property), 0.7 * nrow(property))  # 70% train, 30% test
+train_data <- property[train_indices, ]
+test_data <- property[-train_indices, ]
+
+```
+
+```{r}
+# Fit the random forest model
+rf_model <- randomForest(sale_price ~ ., data = train_data)
+
+# Predict using the model
+predictions <- predict(rf_model, newdata = test_data)
+```
+
+```{r}
+# Fit the linear regression model
+lm_model <- train(sale_price ~ ., data = train_data, method = "lm")
+predictions_lm <- predict(lm_model, newdata = test_data)
+cv_mse <- sqrt(mean(lm_model$resample$RMSE^2))
+print(cv_mse)
+
+
+
+```
+
+```{r}
+# Extract variable importance
+var_importance <- importance(rf_model)
+# View the variable importance
+print(var_importance)
+
+```
+
+
+```{r}
+# Calculate the cross-validated mean squared error
+mse <- mean((property$sale_price - predictions)^2)
+cv_mse <- sqrt(mean(rf_model$mse))
+# View the cross-validated mean squared error
+print(cv_mse)
+```
+
